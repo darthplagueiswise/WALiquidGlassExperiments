@@ -8,7 +8,7 @@ include $(THEOS)/makefiles/common.mk
 TWEAK_NAME = WALiquidGlassExperiments
 
 WALiquidGlassExperiments_FILES = Tweak.xm
-WALiquidGlassExperiments_FRAMEWORKS = Foundation
+WALiquidGlassExperiments_FRAMEWORKS = Foundation UIKit
 WALiquidGlassExperiments_CFLAGS = -fobjc-arc
 
 include $(THEOS_MAKE_PATH)/tweak.mk
