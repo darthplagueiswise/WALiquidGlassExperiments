@@ -4,7 +4,12 @@
 
 static NSString * const kWALGGestureInstalledKey = @"com.darthplagueiswise.walg.gestureInstalled";
 static NSString * const kWALGOverridesKey = @"com.darthplagueiswise.walg.overrides";
-static NSString * const kWALGHandlerAttachedKey = @"com.darthplagueiswise.walg.handlerAttached";
+
+static NSArray<NSString *> *WALGHookKeys(void);
+static NSArray<NSString *> *WALGDefaultsKeys(void);
+static BOOL WALGOverrideEnabled(NSString *key);
+static void WALGWriteExperimentDefaultsIfNeeded(void);
+static void WALGEnableOverrideHelperIfNeeded(void);
 
 @interface WALGMenuHandler : NSObject
 + (instancetype)sharedInstance;
