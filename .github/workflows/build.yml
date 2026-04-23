@@ -17,18 +17,40 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y make clang ldid xz-utils fakeroot dpkg-dev perl git curl
+          sudo apt-get install -y make clang ldid xz-utils fakeroot dpkg-dev perl git curl file
 
       - name: Setup Theos
         run: |
-          git clone --depth 1 https://github.com/theos/theos.git $HOME/theos
-          echo "THEOS=$HOME/theos" >> $GITHUB_ENV
+          git clone --depth 1 https://github.com/theos/theos.git "$HOME/theos"
+          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
 
-      - name: Build package
+      - name: Build rootless package
         env:
           THEOS: ${{ env.THEOS }}
         run: |
-          make package FINALPACKAGE=1
+          make clean
+          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+
+      - name: Extract dylib from rootless deb
+        run: |
+          set -euo pipefail
+          mkdir -p extracted artifacts
+          DEB_FILE="$(find packages -maxdepth 1 -type f -name '*.deb' | head -n 1)"
+          if [ -z "$DEB_FILE" ]; then
+            echo "No deb package found in packages/"
+            exit 1
+          fi
+          dpkg-deb -x "$DEB_FILE" extracted
+          DYLIB_FILE="$(find extracted -type f -name '*.dylib' | head -n 1)"
+          if [ -z "$DYLIB_FILE" ]; then
+            echo "No dylib found inside extracted deb payload"
+            find extracted -maxdepth 6 -type f | sort || true
+            exit 1
+          fi
+          cp "$DYLIB_FILE" artifacts/
+          find extracted -type f -name '*.plist' -exec cp {} artifacts/ \;
+          file "$DYLIB_FILE" || true
+          echo "Extracted dylib: $DYLIB_FILE"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -36,4 +58,5 @@ jobs:
           name: WALiquidGlassExperiments
           path: |
             packages/*.deb
-            .theos/obj/debug/*.dylib
+            artifacts/*.dylib
+            artifacts/*.plist
