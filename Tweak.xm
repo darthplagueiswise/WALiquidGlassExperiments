@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
+#import <dispatch/dispatch.h>
 
 static NSString * const kWALGGestureInstalledKey = @"com.darthplagueiswise.walg.gestureInstalled";
 static NSString * const kWALGOverridesKey = @"com.darthplagueiswise.walg.overrides";
