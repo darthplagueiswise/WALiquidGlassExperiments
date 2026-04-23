@@ -1,7 +1,7 @@
 Package: com.darthplagueiswise.waliquidglassexperiments
 Name: WALiquidGlassExperiments
 Version: 0.0.1
-Architecture: iphoneos-arm64
+Architecture: iphoneos-arm
 Description: Toggleable LiquidGlass experiments for WhatsApp
 Maintainer: darthplagueiswise
 Author: darthplagueiswise
