@@ -1,62 +1,97 @@
-name: Build
+name: Build WALiquidGlassExperiments
 
 on:
-  workflow_dispatch:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    name: Build WALiquidGlassExperiments
+    runs-on: macos-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y make clang ldid xz-utils fakeroot dpkg-dev perl git curl file
+        run: brew install ldid dpkg make
+
+      - name: Set PATH
+        run: echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
 
       - name: Setup Theos
-        run: |
-          git clone --depth 1 https://github.com/theos/theos.git "$HOME/theos"
-          echo "THEOS=$HOME/theos" >> "$GITHUB_ENV"
+        uses: actions/checkout@v4
+        with:
+          repository: theos/theos
+          ref: master
+          path: ${{ github.workspace }}/theos
+          submodules: recursive
 
-      - name: Build rootless package
+      - name: SDK Caching
+        id: sdk
+        uses: actions/cache@v4
         env:
-          THEOS: ${{ env.THEOS }}
+          cache-name: iPhoneOS16.2.sdk
+        with:
+          path: ${{ github.workspace }}/theos/sdks/
+          key: ${{ env.cache-name }}
+          restore-keys: ${{ env.cache-name }}
+
+      - name: Download iOS SDK
+        if: steps.sdk.outputs.cache-hit != 'true'
         run: |
-          make clean
-          make package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=rootless
+          git clone --quiet -n --depth=1 --filter=tree:0 https://github.com/xybp888/iOS-SDKs/
+          cd iOS-SDKs
+          git sparse-checkout set --no-cone iPhoneOS16.2.sdk
+          git checkout
+          mv *.sdk "$THEOS/sdks"
+        env:
+          THEOS: ${{ github.workspace }}/theos
+
+      - name: Get Version
+        id: version
+        run: |
+          VERSION=$(awk '/Version:/ {print $2}' control)
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Build rootless deb
+        run: |
+          export THEOS="${{ github.workspace }}/theos"
+          chmod +x ./build.sh
+          ./build.sh rootless
+          cd packages
+          DEB="$(ls -t *-rootless.deb | head -n1)"
+          [ -n "$DEB" ] && mv "$DEB" "WALiquidGlassExperiments_${VERSION}_rootless.deb"
+          ls -la
 
       - name: Extract dylib from rootless deb
         run: |
           set -euo pipefail
           mkdir -p extracted artifacts
-          DEB_FILE="$(find packages -maxdepth 1 -type f -name '*.deb' | head -n 1)"
-          if [ -z "$DEB_FILE" ]; then
-            echo "No deb package found in packages/"
-            exit 1
-          fi
+          DEB_FILE="packages/WALiquidGlassExperiments_${VERSION}_rootless.deb"
           dpkg-deb -x "$DEB_FILE" extracted
-          DYLIB_FILE="$(find extracted -type f -name '*.dylib' | head -n 1)"
+          DYLIB_FILE="$(find extracted -type f -name '*.dylib' | head -n1)"
           if [ -z "$DYLIB_FILE" ]; then
             echo "No dylib found inside extracted deb payload"
             find extracted -maxdepth 6 -type f | sort || true
             exit 1
           fi
-          cp "$DYLIB_FILE" artifacts/
+          cp "$DYLIB_FILE" "artifacts/$(basename "$DYLIB_FILE")"
           find extracted -type f -name '*.plist' -exec cp {} artifacts/ \;
-          file "$DYLIB_FILE" || true
-          echo "Extracted dylib: $DYLIB_FILE"
 
-      - name: Upload artifacts
+      - name: Upload rootless artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WALiquidGlassExperiments
+          name: WALiquidGlassExperiments_v${{ steps.version.outputs.version }}_rootless
           path: |
-            packages/*.deb
+            packages/WALiquidGlassExperiments_${{ env.VERSION }}_rootless.deb
             artifacts/*.dylib
             artifacts/*.plist
+          if-no-files-found: error
